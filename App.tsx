@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { GameMode, KeyStats, LessonConfig, Theme, TypingSessionStats } from './types';
+import { GameMode, KeyStats, Theme, TypingSessionStats } from './types';
 import TypingArea from './components/TypingArea';
 import VirtualKeyboard from './components/VirtualKeyboard';
 import RainGame from './components/RainGame';
 import { generateLessonContent, generateTypingAdvice } from './services/geminiService';
 import { 
-  ChartBarIcon, 
   ComputerDesktopIcon, 
   SparklesIcon, 
   BoltIcon, 
   SunIcon, 
   MoonIcon, 
-  ArrowPathIcon 
+  ArrowPathIcon,
+  FireIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/solid';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const DEFAULT_TEXT = "Welcome to TypeNeon. Start typing to begin your journey. Speed and accuracy will follow practice.";
 
@@ -36,19 +38,17 @@ const App = () => {
       return char !== text[idx] ? acc + 1 : acc;
     }, 0);
     
-    let timeElapsed = 0;
-    if (startTime) {
-      timeElapsed = (isFinished ? Date.now() : Date.now()) - startTime; // Rough estimate for live view
-      if(isFinished) timeElapsed = Date.now() - startTime; // Fix later with actual end timestamp
-    }
+    // Time calculation
+    const now = Date.now();
+    const start = startTime || now;
+    // Prevent division by zero and minimal time
+    const durationMin = Math.max((now - start) / 60000, 0.001);
     
-    // Avoid division by zero
-    const minutes = Math.max((Date.now() - (startTime || Date.now())) / 60000, 0.001);
-    const wpm = Math.round((charsTyped / 5) / minutes);
+    const wpm = Math.round((charsTyped / 5) / durationMin);
     const accuracy = charsTyped > 0 ? Math.round(((charsTyped - errors) / charsTyped) * 100) : 100;
 
-    return { wpm, accuracy, timeElapsed: minutes * 60, mistakes: errors, charsTyped };
-  }, [userInput, startTime, isFinished, text]);
+    return { wpm, accuracy, timeElapsed: durationMin * 60, mistakes: errors, charsTyped };
+  }, [userInput, startTime, text]);
 
   // --- Effects ---
   useEffect(() => {
@@ -98,7 +98,6 @@ const App = () => {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (mode === GameMode.GAME_RAIN || isFinished || loading) return;
 
-    // Prevent default for scrolling keys if focused on body (handled by inputs usually but global listener here)
     if([' '].includes(e.key) && e.target === document.body) {
         e.preventDefault();
     }
@@ -163,16 +162,28 @@ const App = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // --- Render ---
+  // Identify weakest keys for display
+  const weakKeysDisplay = useMemo(() => {
+    return Object.values(keyStats)
+      .sort((a: KeyStats, b: KeyStats) => (b.errors / (b.total || 1)) - (a.errors / (a.total || 1)))
+      .slice(0, 3)
+      .filter((k: KeyStats) => k.errors > 0); // Explicitly type iteration variable
+  }, [keyStats]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row font-sans bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
       
       {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 bg-white dark:bg-dark-surface border-r border-gray-200 dark:border-slate-800 p-6 flex flex-col gap-6 z-20">
+      <motion.aside 
+        initial={{ x: -100, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        className="w-full md:w-72 bg-white dark:bg-dark-surface border-r border-gray-200 dark:border-slate-800 p-6 flex flex-col gap-6 z-20 shadow-xl"
+      >
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-neon-blue to-neon-purple rounded-lg shadow-lg animate-pulse"></div>
-          <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-neon-blue to-neon-purple">
+          <div className="w-10 h-10 bg-gradient-to-br from-neon-blue to-neon-purple rounded-lg shadow-[0_0_15px_rgba(188,19,254,0.5)] flex items-center justify-center">
+             <FireIcon className="w-6 h-6 text-white" />
+          </div>
+          <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-neon-blue to-neon-purple">
             TypeNeon
           </h1>
         </div>
@@ -182,7 +193,7 @@ const App = () => {
             active={mode === GameMode.LESSON} 
             onClick={() => handleModeChange(GameMode.LESSON)}
             icon={<ComputerDesktopIcon className="w-5 h-5" />}
-            label="Lessons" 
+            label="Practice" 
           />
           <MenuButton 
             active={mode === GameMode.ZEN} 
@@ -197,6 +208,17 @@ const App = () => {
             label="Neon Rain" 
           />
         </nav>
+        
+        <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Training Needed</h3>
+            <div className="flex gap-2">
+                {weakKeysDisplay.length > 0 ? weakKeysDisplay.map((k: KeyStats) => (
+                    <div key={k.char} className="w-8 h-8 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-mono font-bold border border-red-200 dark:border-red-800">
+                        {k.char.toUpperCase()}
+                    </div>
+                )) : <span className="text-xs text-gray-400">No weak keys yet</span>}
+            </div>
+        </div>
 
         <div className="mt-auto pt-6 border-t border-gray-200 dark:border-slate-700">
           <button 
@@ -207,98 +229,122 @@ const App = () => {
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           </button>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto flex flex-col items-center max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-6 md:p-12 overflow-y-auto flex flex-col items-center max-w-7xl mx-auto w-full relative">
         
         {/* Header Stats */}
-        <div className="w-full flex justify-between items-center mb-12">
-           <div className="flex gap-8">
+        <motion.div 
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="w-full flex flex-col sm:flex-row justify-between items-center mb-12 gap-6"
+        >
+           <div className="flex gap-8 bg-white dark:bg-dark-surface p-4 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800">
               <StatCard label="WPM" value={currentStats.wpm} color="text-neon-green" />
+              <div className="w-px bg-gray-200 dark:bg-slate-700 h-10 self-center"></div>
               <StatCard label="ACCURACY" value={`${currentStats.accuracy}%`} color="text-neon-blue" />
            </div>
+           
            {mode === GameMode.LESSON && (
              <button 
                onClick={() => handleLessonGenerate('Intermediate')}
-               className="flex items-center gap-2 px-4 py-2 bg-slate-200 dark:bg-slate-800 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors text-sm font-bold"
+               className="group flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-neon-blue to-neon-purple text-white rounded-xl shadow-[0_0_20px_rgba(188,19,254,0.3)] hover:shadow-[0_0_30px_rgba(188,19,254,0.5)] transition-all font-bold"
                disabled={loading}
              >
-               <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+               <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
                {loading ? 'Generating...' : 'Surprise Me'}
              </button>
            )}
-        </div>
+        </motion.div>
 
-        {/* Dynamic Content Based on Mode */}
+        {/* Dynamic Content */}
+        <div className="w-full max-w-5xl flex-1 flex flex-col items-center">
         {mode === GameMode.GAME_RAIN ? (
-          <div className="w-full max-w-4xl">
+          <div className="w-full h-full min-h-[500px]">
              {isFinished ? (
-                 <div className="bg-dark-surface p-8 rounded-2xl border border-neon-purple text-center">
-                    <h2 className="text-3xl font-bold mb-4 text-white">Game Over</h2>
-                    <p className="text-xl text-neon-blue mb-6">Final Score: {lastGameScore}</p>
+                 <motion.div 
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="bg-dark-surface p-12 rounded-3xl border-2 border-neon-purple text-center shadow-2xl"
+                 >
+                    <h2 className="text-4xl font-black mb-4 text-white uppercase tracking-widest">Game Over</h2>
+                    <p className="text-6xl font-mono text-neon-blue mb-8 text-shadow-neon">{lastGameScore}</p>
                     <button 
                       onClick={() => { setIsFinished(false); setLastGameScore(0); }}
-                      className="px-6 py-3 bg-neon-purple text-white rounded-lg font-bold hover:bg-opacity-80 transition"
+                      className="px-8 py-4 bg-neon-purple text-white rounded-xl font-bold hover:bg-opacity-80 transition text-lg"
                     >
                       Play Again
                     </button>
-                 </div>
+                 </motion.div>
              ) : (
                 <RainGame onGameEnd={(score) => { setLastGameScore(score); setIsFinished(true); }} />
              )}
           </div>
         ) : (
           <>
-            {/* Results Modal */}
+            <AnimatePresence>
             {isFinished && (
-              <div className="w-full max-w-4xl mb-8 p-6 bg-white dark:bg-slate-800 rounded-xl border border-neon-green shadow-lg animate-fade-in-up">
-                <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="w-full mb-8 p-6 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-neon-green shadow-xl"
+              >
+                <div className="flex flex-col md:flex-row justify-between items-start gap-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Session Complete!</h2>
-                    <p className="text-gray-600 dark:text-gray-300">
-                      WPM: <span className="text-neon-green font-bold text-xl">{currentStats.wpm}</span> | 
-                      Accuracy: <span className="text-neon-blue font-bold text-xl">{currentStats.accuracy}%</span>
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Session Complete</h2>
+                    <p className="text-gray-600 dark:text-gray-300 flex items-center gap-4">
+                      <span>Speed: <span className="text-neon-green font-bold text-2xl">{currentStats.wpm}</span> wpm</span>
+                      <span>•</span>
+                      <span>Accuracy: <span className="text-neon-blue font-bold text-2xl">{currentStats.accuracy}%</span></span>
                     </p>
                   </div>
                   {aiAdvice && (
-                    <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg max-w-md">
-                      <div className="flex items-center gap-2 mb-1 text-neon-purple text-sm font-bold uppercase">
-                        <SparklesIcon className="w-4 h-4" /> AI Coach
+                    <div className="flex-1 bg-slate-50 dark:bg-slate-700/50 p-4 rounded-xl border border-slate-200 dark:border-slate-600">
+                      <div className="flex items-center gap-2 mb-2 text-neon-purple text-sm font-bold uppercase tracking-wide">
+                        <SparklesIcon className="w-4 h-4" /> AI Analysis
                       </div>
-                      <p className="italic text-gray-700 dark:text-gray-300 text-sm">"{aiAdvice}"</p>
+                      <p className="italic text-gray-700 dark:text-gray-200 font-medium">"{aiAdvice}"</p>
                     </div>
                   )}
                 </div>
                 <div className="mt-6 flex justify-end">
                    <button 
                      onClick={() => { resetSession(); if(mode === GameMode.ZEN) handleModeChange(GameMode.ZEN); }}
-                     className="px-6 py-2 bg-neon-blue text-black font-bold rounded-lg hover:bg-opacity-80 transition"
+                     className="px-8 py-3 bg-gray-900 dark:bg-white text-white dark:text-black font-bold rounded-xl hover:scale-105 transition-transform"
                    >
-                     Next Lesson
+                     Next Lesson →
                    </button>
                 </div>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 
             {/* Typing Area */}
             <TypingArea 
               fullText={text} 
               userInput={userInput} 
-              isFocused={true} // Simplified focus for demo
+              isFocused={true} 
               onBlur={() => {}}
               onFocus={() => {}}
             />
 
             {/* Virtual Keyboard */}
-            <div className="mt-12 w-full max-w-5xl overflow-x-auto">
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="mt-12 w-full overflow-x-auto"
+            >
               <VirtualKeyboard 
                 activeKey={text[userInput.length]} 
                 keyStats={keyStats}
               />
-            </div>
+            </motion.div>
           </>
         )}
+        </div>
 
       </main>
     </div>
@@ -311,10 +357,10 @@ const MenuButton = ({ active, onClick, label, icon }: any) => (
   <button 
     onClick={onClick}
     className={`
-      flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200
+      w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-200
       ${active 
-        ? 'bg-slate-100 dark:bg-slate-800 text-neon-blue border-l-4 border-neon-blue' 
-        : 'text-gray-500 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}
+        ? 'bg-slate-900 dark:bg-white text-white dark:text-black shadow-lg scale-105' 
+        : 'text-gray-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-slate-800'}
     `}
   >
     {icon}
@@ -323,9 +369,9 @@ const MenuButton = ({ active, onClick, label, icon }: any) => (
 );
 
 const StatCard = ({ label, value, color }: any) => (
-  <div className="flex flex-col">
-    <span className="text-xs font-bold text-gray-400 tracking-wider mb-1">{label}</span>
-    <span className={`text-4xl font-mono font-bold ${color}`}>{value}</span>
+  <div className="flex flex-col min-w-[100px]">
+    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</span>
+    <span className={`text-5xl font-mono font-black tracking-tighter ${color} drop-shadow-sm`}>{value}</span>
   </div>
 );
 
