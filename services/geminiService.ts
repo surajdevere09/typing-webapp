@@ -1,6 +1,7 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 // Initialize Gemini Client
+// The API key must be obtained exclusively from the environment variable process.env.API_KEY.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateLessonContent = async (
@@ -29,7 +30,7 @@ export const generateLessonContent = async (
     return response.text?.trim() || "The quick brown fox jumps over the lazy dog.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "Error generating lesson. Please check your API key or try again later. The quick brown fox jumps over the lazy dog.";
+    return "The quick brown fox jumps over the lazy dog.";
   }
 };
 

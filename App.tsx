@@ -167,23 +167,26 @@ const App = () => {
     return Object.values(keyStats)
       .sort((a: KeyStats, b: KeyStats) => (b.errors / (b.total || 1)) - (a.errors / (a.total || 1)))
       .slice(0, 3)
-      .filter((k: KeyStats) => k.errors > 0); // Explicitly type iteration variable
+      .filter((k: KeyStats) => k.errors > 0); 
   }, [keyStats]);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-sans bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300">
+    <div className="min-h-screen flex flex-col md:flex-row font-sans bg-gray-50 dark:bg-dark-bg text-gray-900 dark:text-gray-100 transition-colors duration-300 overflow-hidden relative">
       
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-grid-pattern opacity-100 pointer-events-none z-0" />
+
       {/* Sidebar Navigation */}
       <motion.aside 
         initial={{ x: -100, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
-        className="w-full md:w-72 bg-white dark:bg-dark-surface border-r border-gray-200 dark:border-slate-800 p-6 flex flex-col gap-6 z-20 shadow-xl"
+        className="w-full md:w-72 bg-white/90 dark:bg-dark-surface/90 backdrop-blur-xl border-r border-gray-200 dark:border-slate-800 p-6 flex flex-col gap-6 z-20 shadow-xl"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-neon-blue to-neon-purple rounded-lg shadow-[0_0_15px_rgba(188,19,254,0.5)] flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-to-br from-neon-blue to-neon-purple rounded-lg shadow-[0_0_15px_rgba(188,19,254,0.5)] flex items-center justify-center shrink-0">
              <FireIcon className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-neon-blue to-neon-purple">
+          <h1 className="text-3xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-neon-blue to-neon-purple truncate">
             TypeNeon
           </h1>
         </div>
@@ -209,11 +212,11 @@ const App = () => {
           />
         </nav>
         
-        <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-900 rounded-xl">
+        <div className="mt-4 p-4 bg-slate-100 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Training Needed</h3>
             <div className="flex gap-2">
                 {weakKeysDisplay.length > 0 ? weakKeysDisplay.map((k: KeyStats) => (
-                    <div key={k.char} className="w-8 h-8 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-mono font-bold border border-red-200 dark:border-red-800">
+                    <div key={k.char} className="w-8 h-8 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center font-mono font-bold border border-red-200 dark:border-red-800 animate-pulse">
                         {k.char.toUpperCase()}
                     </div>
                 )) : <span className="text-xs text-gray-400">No weak keys yet</span>}
@@ -232,15 +235,15 @@ const App = () => {
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 md:p-12 overflow-y-auto flex flex-col items-center max-w-7xl mx-auto w-full relative">
+      <main className="flex-1 p-6 md:p-12 overflow-y-auto flex flex-col items-center w-full relative z-10">
         
         {/* Header Stats */}
         <motion.div 
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="w-full flex flex-col sm:flex-row justify-between items-center mb-12 gap-6"
+            className="w-full max-w-5xl flex flex-col sm:flex-row justify-between items-center mb-12 gap-6"
         >
-           <div className="flex gap-8 bg-white dark:bg-dark-surface p-4 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800">
+           <div className="flex gap-8 bg-white/80 dark:bg-dark-surface/80 backdrop-blur-md p-4 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800">
               <StatCard label="WPM" value={currentStats.wpm} color="text-neon-green" />
               <div className="w-px bg-gray-200 dark:bg-slate-700 h-10 self-center"></div>
               <StatCard label="ACCURACY" value={`${currentStats.accuracy}%`} color="text-neon-blue" />
@@ -289,7 +292,7 @@ const App = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="w-full mb-8 p-6 bg-white dark:bg-slate-800 rounded-2xl border-l-4 border-neon-green shadow-xl"
+                className="w-full mb-8 p-6 bg-white dark:bg-slate-800/90 backdrop-blur rounded-2xl border-l-4 border-neon-green shadow-xl"
               >
                 <div className="flex flex-col md:flex-row justify-between items-start gap-6">
                   <div>
